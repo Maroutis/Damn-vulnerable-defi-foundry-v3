@@ -1,4 +1,4 @@
-pragma solidity ^0.8.0;
+pragma solidity ^0.6.0;
 
 contract WETH9 {
     string public constant name = "Wrapped Ether";
@@ -45,8 +45,7 @@ contract WETH9 {
 
     function transferFrom(address src, address dst, uint256 wad) public returns (bool) {
         require(balanceOf[src] >= wad);
-
-        if (src != msg.sender && allowance[src][msg.sender] != type(uint256).max) {
+        if (src != msg.sender && allowance[src][msg.sender] != 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff) {
             require(allowance[src][msg.sender] >= wad);
             allowance[src][msg.sender] -= wad;
         }

