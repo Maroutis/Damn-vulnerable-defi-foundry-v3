@@ -1,0 +1,36 @@
+Arguments: 
+  /home/maroutis/.nvm/versions/node/v20.4.0/bin/node /usr/local/bin/yarn add --dev @tenderly/tenderly-cli
+
+PATH: 
+  /home/maroutis/.vscode-server/bin/f1e16e1e6214d7c44d078b1f0607b2388f29d729/bin/remote-cli:/home/maroutis/.local/bin:/home/maroutis/.cargo/bin:/home/maroutis/.nvm/versions/node/v20.4.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/mnt/c/Windows/system32:/mnt/c/Windows:/mnt/c/Windows/System32/Wbem:/mnt/c/Windows/System32/WindowsPowerShell/v1.0/:/mnt/c/Windows/System32/OpenSSH/:/mnt/c/Program Files/Calibre2/:/mnt/c/Program Files/Docker/Docker/resources/bin:/mnt/c/Users/Admin/AppData/Local/Programs/Python/Python310/Scripts/:/mnt/c/Users/Admin/AppData/Local/Programs/Python/Python310/:/mnt/c/Users/Admin/AppData/Local/Microsoft/WindowsApps:/mnt/c/Users/Admin/AppData/Local/Programs/Microsoft VS Code/bin:/mnt/c/Program Files/JetBrains/IntelliJ IDEA Community Edition 2022.3.3/bin:/mnt/c/Users/Admin/AppData/Roaming/Amazon:/snap/bin:/home/maroutis/.local/bin:/home/maroutis/.foundry/bin:/home/maroutis/eldarica:/usr/local/go/bin:/home/maroutis/.huff/bin:/home/maroutis/.local/bin:/usr/local/go/bin:/home/maroutis/.local/bin:/home/maroutis/.foundry/bin:/home/maroutis/eldarica:/usr/local/go/bin:/home/maroutis/.huff/bin
+
+Yarn version: 
+  1.22.19
+
+Node version: 
+  20.4.0
+
+Platform: 
+  linux x64
+
+Trace: 
+  Error: https://registry.npmjs.org/@tenderly%2ftenderly-cli: Not found
+      at params.callback [as _callback] (/usr/local/lib/node_modules/yarn/lib/cli.js:66145:18)
+      at self.callback (/usr/local/lib/node_modules/yarn/lib/cli.js:140890:22)
+      at Request.emit (node:events:512:28)
+      at Request.<anonymous> (/usr/local/lib/node_modules/yarn/lib/cli.js:141862:10)
+      at Request.emit (node:events:512:28)
+      at IncomingMessage.<anonymous> (/usr/local/lib/node_modules/yarn/lib/cli.js:141784:12)
+      at Object.onceWrapper (node:events:626:28)
+      at IncomingMessage.emit (node:events:524:35)
+      at endReadableNT (node:internal/streams/readable:1378:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:82:21)
+
+npm manifest: 
+  No manifest
+
+yarn manifest: 
+  No manifest
+
+Lockfile: 
+  No lockfile
